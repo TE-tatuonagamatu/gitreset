@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 )
@@ -40,6 +41,10 @@ func vendorReset() {
 	fmt.Println(gopath)
 
 	for _, m := range v.Vendors {
+		if strings.Contains(m.Path, "tractrix") {
+			fmt.Println("SKIP: ", m.Path)
+			continue
+		}
 		if m.Hold {
 			fmt.Println("HOLD: ", m.Path)
 			continue
