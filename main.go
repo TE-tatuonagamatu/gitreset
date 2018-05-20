@@ -26,15 +26,6 @@ type glide struct {
 }
 
 func resetRepo(gopath string, path string, rev string, hold bool) error {
-	if strings.Contains(path, "tractrix") {
-		fmt.Println("SKIP: ", path)
-		return nil
-	}
-	if hold {
-		fmt.Println("HOLD: ", path)
-		return nil
-	}
-
 	mpath := gopath + "/src/" + path
 	_, err := os.Stat(mpath)
 	if err != nil {
@@ -61,6 +52,15 @@ func resetRepo(gopath string, path string, rev string, hold bool) error {
 		return err
 	}
 
+	if strings.Contains(path, "tractrix") {
+		fmt.Println("SKIP: ", path)
+		return nil
+	}
+	if hold {
+		fmt.Println("HOLD: ", path)
+		return nil
+	}
+
 	cmd = exec.Command("git", "reset", "--hard", rev)
 	cmd.Dir = mpath
 	out, err = cmd.Output()
@@ -69,19 +69,13 @@ func resetRepo(gopath string, path string, rev string, hold bool) error {
 	return nil
 }
 
-func vendorReset() {
-	buf, err := ioutil.ReadFile("vendor.yml")
-	if err != nil {
-		panic(err)
-	}
-
+func resetWithVendor(gopath string, buf []byte) {
 	var v vendor
-	err = yaml.Unmarshal(buf, &v)
+	err := yaml.Unmarshal(buf, &v)
 	if err != nil {
 		panic(err)
 	}
 
-	gopath := os.Getenv("GOPATH")
 	fmt.Println(gopath)
 
 	for _, m := range v.Vendors {
@@ -91,20 +85,13 @@ func vendorReset() {
 	}
 }
 
-func main() {
-	buf, err := ioutil.ReadFile("glide.yaml")
-	if err != nil {
-		vendorReset()
-		return
-	}
-
+func resetWithGlide(gopath string, buf []byte) {
 	var g glide
-	err = yaml.Unmarshal(buf, &g)
+	err := yaml.Unmarshal(buf, &g)
 	if err != nil {
 		panic(err)
 	}
 
-	gopath := os.Getenv("GOPATH")
 	fmt.Println(gopath)
 
 	for _, m := range g.Imports {
@@ -112,4 +99,22 @@ func main() {
 			fmt.Println("Error: ", err.Error())
 		}
 	}
+}
+
+func main() {
+	gopath := os.Getenv("GOPATH")
+
+	buf, err := ioutil.ReadFile("glide.yaml")
+	if err == nil {
+		resetWithGlide(gopath, buf)
+		return
+	}
+
+	buf, err = ioutil.ReadFile("vendor.yml")
+	if err == nil {
+		resetWithVendor(gopath, buf)
+		return
+	}
+
+	fmt.Printf("Error: glide.yaml or vendor.yml is required at current working directory.")
 }
