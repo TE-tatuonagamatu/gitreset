@@ -25,6 +25,50 @@ type glide struct {
 	} `yaml:"import"`
 }
 
+func resetRepo(gopath string, path string, rev string, hold bool) error {
+	if strings.Contains(path, "tractrix") {
+		fmt.Println("SKIP: ", path)
+		return nil
+	}
+	if hold {
+		fmt.Println("HOLD: ", path)
+		return nil
+	}
+
+	mpath := gopath + "/src/" + path
+	_, err := os.Stat(mpath)
+	if err != nil {
+		cmd := exec.Command("go", "get", path)
+		_, err := cmd.Output()
+		if err != nil {
+			fmt.Println("Error go get: ", path)
+			return err
+		}
+	}
+
+	_, err = os.Stat(mpath)
+	if err != nil {
+		fmt.Println("NOT FOUND: ", path)
+		return err
+	}
+
+	cmd := exec.Command("git", "pull")
+	cmd.Dir = mpath
+	out, err := cmd.Output()
+	fmt.Println(path, string(out))
+	if err != nil {
+		fmt.Println("Error git pull: ", path)
+		return err
+	}
+
+	cmd = exec.Command("git", "reset", "--hard", rev)
+	cmd.Dir = mpath
+	out, err = cmd.Output()
+	fmt.Println(path, string(out))
+
+	return nil
+}
+
 func vendorReset() {
 	buf, err := ioutil.ReadFile("vendor.yml")
 	if err != nil {
@@ -41,24 +85,9 @@ func vendorReset() {
 	fmt.Println(gopath)
 
 	for _, m := range v.Vendors {
-		if strings.Contains(m.Path, "tractrix") {
-			fmt.Println("SKIP: ", m.Path)
-			continue
+		if err = resetRepo(gopath, m.Path, m.Rev, m.Hold); err != nil {
+			fmt.Println("Error: ", err.Error())
 		}
-		if m.Hold {
-			fmt.Println("HOLD: ", m.Path)
-			continue
-		}
-		cmd := exec.Command("git", "reset", "--hard", m.Rev)
-		cmd.Dir = gopath + "/src/" + m.Path
-		_, err := os.Stat(cmd.Dir)
-		if err != nil {
-			fmt.Println("NOT FOUND: ", m.Path)
-			continue
-		}
-
-		out, err := cmd.Output()
-		fmt.Println(m.Path, string(out))
 	}
 }
 
@@ -79,15 +108,8 @@ func main() {
 	fmt.Println(gopath)
 
 	for _, m := range g.Imports {
-		cmd := exec.Command("git", "reset", "--hard", m.Version)
-		cmd.Dir = gopath + "/src/" + m.Package
-		_, err := os.Stat(cmd.Dir)
-		if err != nil {
-			fmt.Println("NOT FOUND: ", m.Package)
-			continue
+		if err = resetRepo(gopath, m.Package, m.Version, false); err != nil {
+			fmt.Println("Error: ", err.Error())
 		}
-
-		out, err := cmd.Output()
-		fmt.Println(m.Package, string(out))
 	}
 }
